@@ -1,0 +1,813 @@
+<!doctype html>
+<html lang="el">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Calendar</title>
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Calendar">
+<meta name="theme-color" content="#C9D3C1">
+<meta name="color-scheme" content="light only">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<link rel="icon" type="image/png" href="icon-192.png">
+<link rel="preload" href="fonts/GFSDidot-Regular.ttf" as="font" type="font/ttf" crossorigin>
+<style>
+@font-face { font-family: "GFS Didot"; src: url("fonts/GFSDidot-Regular.ttf") format("truetype"); font-weight: 400; font-style: normal; font-display: swap; }
+:root { padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px); }
+</style>
+<style>
+/* Layout: a spiral weekly planner lying open on its linen cover. Mon–Wed sheets on the left, Thu–Sun on the right,
+   each day its own ruled ivory sheet, Sundays and feast days printed in red, today circled in blue pen. */
+:root {
+  --cover: #C9D3C1;
+  --cover-hi: #DCE4D5;
+  --cover-ink: #33403A;
+  --cover-muted: #5B695F;
+  --paper: #FFFDF7;
+  --paper-edge: #E2DCCE;
+  --line: #E1DBCD;
+  --rule: #D6CFBF;
+  --paper-press: #F5F1E6;
+  --fold: rgba(80, 66, 40, .07);
+  --ring: #484D47;
+  --ring-hi: #9EA59B;
+  --hole: #B4BEAC;
+  --ink: #2D2B27;
+  --ink-pen: #26344F;
+  --muted: #877F70;
+  --red: #B4473E;
+  --pen: #2E56A0;
+  --pen-shade: rgba(46, 86, 160, .28);
+  --press: rgba(46, 86, 160, .07);
+  --scrim: rgba(38, 46, 40, .30);
+  --shade: rgba(44, 56, 46, .20);
+  --shade-soft: rgba(44, 56, 46, .13);
+  --linen-a: rgba(255, 255, 255, .10);
+  --linen-b: rgba(40, 52, 44, .04);
+  --grain: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.8' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .36 0 0 0 0 .31 0 0 0 0 .22 .07 0 0 0 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  --font-display: "GFS Didot", Georgia, "Times New Roman", serif;
+  --font-text: -apple-system, BlinkMacSystemFont, system-ui, "Segoe UI", Roboto, "Noto Sans", sans-serif;
+  --lh: 18px;
+  color-scheme: light;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html { height: 100%; box-sizing: border-box; background: var(--cover); }
+body {
+  height: 100%; margin: 0; overflow: hidden; overscroll-behavior: none;
+  color: var(--ink); font-family: var(--font-text); font-size: 15px;
+  background:
+    repeating-linear-gradient(0deg, var(--linen-a) 0 1px, transparent 1px 3px),
+    repeating-linear-gradient(90deg, var(--linen-b) 0 1px, transparent 1px 3px),
+    radial-gradient(130% 70% at 50% 0%, var(--cover-hi), transparent 70%),
+    var(--cover);
+  -webkit-tap-highlight-color: transparent; -webkit-text-size-adjust: 100%;
+}
+button {
+  font: inherit; color: inherit; background: none; border: 0; padding: 0; margin: 0;
+  cursor: pointer; -webkit-appearance: none; appearance: none; touch-action: manipulation;
+}
+:focus-visible { outline: 2px solid var(--pen); outline-offset: 2px; }
+
+/* ---------- screen ---------- */
+.app {
+  position: relative; z-index: 0;
+  height: 100%; display: flex; flex-direction: column; gap: 10px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 6px 0;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none;
+}
+.top { display: flex; align-items: flex-end; gap: 10px; }
+.title {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 4px;
+  padding: 4px 8px 4px; margin-left: -8px; border-radius: 12px; text-align: left; min-width: 0;
+  color: var(--cover-ink);
+}
+.title:active { background: var(--linen-a); }
+.month {
+  display: flex; align-items: center; gap: 8px;
+  font-family: var(--font-display); font-size: 31px; line-height: .95; white-space: nowrap;
+}
+.month svg { width: 12px; height: 12px; color: var(--cover-muted); flex: none; margin-top: 7px; }
+.week {
+  font-size: 10px; font-weight: 600; letter-spacing: .16em; color: var(--cover-muted);
+  font-variant-numeric: tabular-nums;
+}
+.spacer { flex: 1; }
+.today-btn {
+  height: 34px; padding: 0 16px; margin-bottom: 4px; border-radius: 17px;
+  background: var(--paper); color: var(--pen); font-weight: 600; font-size: 14px;
+  box-shadow: 0 1px 2px var(--shade); transition: transform .15s;
+}
+.today-btn:active, .icon-btn:active { transform: scale(.93); }
+
+/* ---------- the open planner ---------- */
+/* two columns of separate day sheets, joined by a spiral down the middle */
+.spread {
+  flex: 1; min-height: 0; position: relative; margin-bottom: 14px;
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: 14px;
+  touch-action: none;
+}
+.page {
+  min-height: 0; display: grid; row-gap: 9px;
+  transform: translateX(var(--sx, 0px)); opacity: var(--so, 1);
+  transition: transform var(--sd, 0s) cubic-bezier(.2, .8, .2, 1), opacity var(--sd, 0s) ease;
+}
+.page.left { grid-template-rows: repeat(3, minmax(0, 1fr)); }
+.page.right { grid-template-rows: minmax(0, 2fr) minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr); }
+
+/* punched holes, then the wire rings over them */
+.spread::before, .spread::after {
+  content: ""; position: absolute; top: 10px; bottom: 10px; left: 50%; width: 24px;
+  transform: translateX(-50%); pointer-events: none;
+}
+.spread::before {
+  z-index: 2;
+  background-image:
+    radial-gradient(circle at 3.5px 6px, var(--hole) 0 1.7px, transparent 2.3px),
+    radial-gradient(circle at 20.5px 6px, var(--hole) 0 1.7px, transparent 2.3px);
+  background-size: 24px 12px; background-repeat: repeat-y;
+}
+.spread::after {
+  z-index: 3;
+  background: repeating-linear-gradient(to bottom, var(--ring-hi) 0 5.6px, var(--ring) 5.6px 12px);
+  -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12'%3E%3Crect x='1.6' y='3.7' width='20.8' height='4.6' rx='2.3' fill='none' stroke='black' stroke-width='1.3'/%3E%3C/svg%3E") 0 0 / 24px 12px repeat-y;
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='24' height='12'%3E%3Crect x='1.6' y='3.7' width='20.8' height='4.6' rx='2.3' fill='none' stroke='black' stroke-width='1.3'/%3E%3C/svg%3E") 0 0 / 24px 12px repeat-y;
+}
+
+.day {
+  position: relative; min-height: 0; display: flex; flex-direction: column;
+  text-align: left; padding: 7px 13px 0; overflow: hidden; border-radius: 12px;
+  background-color: var(--paper);
+  box-shadow: 0 1px 0 var(--paper-edge), 0 2px 0 var(--paper), 0 3px 0 var(--paper-edge), 0 7px 14px var(--shade-soft);
+  transition: background-color .15s;
+}
+.page.left .day {
+  padding-right: 16px;
+  background-image: linear-gradient(to left, var(--fold), transparent 18px), var(--grain);
+}
+.page.right .day {
+  padding-left: 16px;
+  background-image: linear-gradient(to right, var(--fold), transparent 18px), var(--grain);
+}
+.day:active { background-color: var(--paper-press); }
+
+.head { display: flex; align-items: baseline; gap: 6px; height: 27px; flex: none; min-width: 0; }
+.today .head { gap: 13px; }
+.numwrap { position: relative; flex: none; }
+.num { font-family: var(--font-display); font-size: 23px; line-height: 1; font-variant-numeric: lining-nums; }
+.dow { flex: none; font-size: 10px; font-weight: 600; letter-spacing: .14em; color: var(--muted); }
+.feast {
+  display: block; flex: none; margin: -4px 0 1px; height: 16px; line-height: 16px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-family: var(--font-display); font-size: 13px; color: var(--red);
+}
+.red .num, .red .dow { color: var(--red); }
+
+/* today, circled in pen */
+.circle { position: absolute; left: -8px; top: -7px; width: calc(100% + 16px); height: calc(100% + 13px); overflow: visible; pointer-events: none; }
+.circle path {
+  fill: none; stroke: var(--pen); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round;
+  stroke-dasharray: 100; stroke-dashoffset: 0;
+}
+.circle.draw path { animation: draw .75s .2s cubic-bezier(.55, .1, .3, 1) both; }
+@keyframes draw { from { stroke-dashoffset: 100; } }
+
+.text {
+  display: block; flex: 1; min-height: 0; overflow: hidden;
+  white-space: pre-wrap; overflow-wrap: anywhere;
+  font-size: 14px; line-height: var(--lh); color: var(--ink-pen);
+  background-image: linear-gradient(to bottom, transparent calc(var(--lh) - 1px), var(--line) calc(var(--lh) - 1px), var(--line) var(--lh));
+  background-size: 100% var(--lh);
+}
+.text.more {
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 16px), transparent);
+}
+
+/* ---------- overlays ---------- */
+.scrim {
+  position: fixed; inset: 0; z-index: 20; background: var(--scrim);
+  opacity: 0; pointer-events: none; transition: opacity .22s;
+}
+.scrim.on { opacity: 1; pointer-events: auto; }
+
+.editor {
+  position: fixed; z-index: 21;
+  left: max(12px, env(safe-area-inset-left, 0px));
+  right: max(12px, env(safe-area-inset-right, 0px));
+  top: calc(var(--vv-top, 0px) + 10px + env(safe-area-inset-top, 0px));
+  height: calc(var(--vv-h, 100%) - 26px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px));
+  display: flex; flex-direction: column; overflow: hidden;
+  background-color: var(--paper); background-image: var(--grain); border-radius: 14px;
+  box-shadow: 0 1px 0 var(--paper-edge), 0 2px 0 var(--paper), 0 3px 0 var(--paper-edge), 0 4px 0 var(--paper), 0 5px 0 var(--paper-edge), 0 18px 40px var(--shade);
+  opacity: 0; transform: translateY(14px) scale(.985); pointer-events: none;
+  transition: opacity .2s ease, transform .28s cubic-bezier(.2, .8, .2, 1);
+}
+.editor.kb { height: calc(var(--vv-h, 100%) - 22px - env(safe-area-inset-top, 0px)); }
+.editor.open { opacity: 1; transform: none; pointer-events: auto; }
+.ed-head {
+  display: flex; align-items: center; gap: 14px; flex: none;
+  padding: 16px 14px 14px 20px; border-bottom: 1px solid var(--rule);
+}
+.ed-numwrap { position: relative; flex: none; }
+.ed-num { display: block; font-family: var(--font-display); font-size: 44px; line-height: 1; font-variant-numeric: lining-nums; }
+.ed-titles { flex: 1; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.ed-day { font-size: 11px; font-weight: 600; letter-spacing: .16em; color: var(--muted); }
+.ed-date { font-family: var(--font-display); font-size: 18px; line-height: 1.15; }
+.ed-feast { font-family: var(--font-display); font-size: 14px; line-height: 1.2; color: var(--red); }
+.editor.red .ed-num, .editor.red .ed-day { color: var(--red); }
+.done {
+  flex: none; width: 42px; height: 42px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: var(--pen); color: var(--paper);
+  box-shadow: 0 1px 1px var(--pen-shade), 0 4px 10px var(--pen-shade);
+  transition: transform .15s;
+}
+.done svg { width: 20px; height: 20px; }
+.done:active { transform: scale(.92); }
+#note {
+  flex: 1; min-height: 0; width: 100%; margin: 0; resize: none; border: 0; outline: none;
+  padding: 0 20px 28px; color: var(--ink-pen); background-color: transparent;
+  font: 16px/24px var(--font-text); caret-color: var(--pen);
+  background-image: linear-gradient(to bottom, transparent 23px, var(--line) 23px, var(--line) 24px);
+  background-size: 100% 24px; background-position: 0 0; background-attachment: local;
+  user-select: text; -webkit-user-select: text;
+}
+
+.sheet {
+  position: fixed; z-index: 21; left: 0; right: 0; bottom: 0;
+  padding-top: 10px;
+  padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  padding-left: max(18px, env(safe-area-inset-left, 0px));
+  padding-right: max(18px, env(safe-area-inset-right, 0px));
+  background-color: var(--paper); background-image: var(--grain);
+  border-radius: 22px 22px 0 0; box-shadow: 0 -8px 30px var(--shade);
+  transform: translateY(105%); transition: transform .32s cubic-bezier(.2, .8, .2, 1);
+  user-select: none; -webkit-user-select: none;
+}
+.sheet.open { transform: none; }
+.grabber { width: 38px; height: 5px; border-radius: 3px; background: var(--rule); margin: 0 auto 12px; }
+.sheet-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.sheet-title { font-family: var(--font-display); font-size: 26px; }
+.icon-btn {
+  width: 38px; height: 38px; border-radius: 19px; flex: none;
+  display: grid; place-items: center; background: var(--press); color: var(--ink);
+  transition: transform .15s;
+}
+.icon-btn svg { width: 18px; height: 18px; }
+.wk, .grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); }
+.wk { border-bottom: 1px solid var(--rule); margin-bottom: 4px; }
+.wk span {
+  text-align: center; padding: 14px 0 8px;
+  font-size: 11px; font-weight: 600; letter-spacing: .12em; color: var(--muted);
+}
+.wk span:last-child { color: var(--red); }
+.cell { position: relative; height: 46px; display: grid; place-items: center; }
+.cell .n {
+  position: relative; display: grid; place-items: center; min-width: 30px; height: 30px;
+  font-family: var(--font-display); font-size: 20px; font-variant-numeric: lining-nums;
+}
+.cell.red .n { color: var(--red); }
+.cell.out .n { opacity: .35; }
+.cell.inweek { background: var(--press); }
+.cell.wk-first { border-radius: 12px 0 0 12px; }
+.cell.wk-last { border-radius: 0 12px 12px 0; }
+.cell .circle { left: -7px; top: -6px; width: calc(100% + 14px); height: calc(100% + 12px); }
+.cell.has::after {
+  content: ""; position: absolute; bottom: 4px; left: 50%;
+  width: 4px; height: 4px; margin-left: -2px; border-radius: 50%; background: var(--pen);
+}
+.sheet-foot { display: flex; justify-content: center; gap: 24px; padding-top: 14px; }
+.link { font-size: 14px; color: var(--muted); padding: 6px 4px; }
+
+.toast {
+  position: fixed; z-index: 30; left: 50%;
+  bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+  transform: translate(-50%, 16px); opacity: 0; pointer-events: none;
+  background: var(--ink); color: var(--paper);
+  padding: 10px 18px; border-radius: 22px; font-size: 14px; white-space: nowrap;
+  transition: opacity .25s, transform .25s;
+}
+.toast.on { opacity: 1; transform: translate(-50%, 0); }
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { transition: none !important; animation: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header class="top">
+    <button class="title" id="titleBtn" type="button" aria-haspopup="dialog">
+      <span class="month"><span id="monthName">Νοέμβριος</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 9l6 6 6-6"/></svg></span>
+      <span class="week" id="weekLine"></span>
+    </button>
+    <span class="spacer"></span>
+    <button class="today-btn" id="todayBtn" type="button" hidden>Σήμερα</button>
+  </header>
+  <main class="spread" id="spread">
+    <div class="page left" id="pageL"></div>
+    <div class="page right" id="pageR"></div>
+  </main>
+</div>
+
+<div class="scrim" id="scrim"></div>
+
+<section class="editor" id="editor" role="dialog" aria-modal="true" aria-labelledby="edDay edDate" inert>
+  <div class="ed-head">
+    <div class="ed-numwrap" id="edNumWrap"><span class="ed-num" id="edNum"></span></div>
+    <div class="ed-titles">
+      <span class="ed-day" id="edDay"></span>
+      <span class="ed-date" id="edDate"></span>
+      <span class="ed-feast" id="edFeast" hidden></span>
+    </div>
+    <button class="done" id="doneBtn" type="button" aria-label="Τέλος"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></button>
+  </div>
+  <textarea id="note" aria-labelledby="edDay edDate" spellcheck="true" autocapitalize="sentences"></textarea>
+</section>
+
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle" inert>
+  <div class="grabber"></div>
+  <div class="sheet-head">
+    <button class="icon-btn" id="prevMonth" type="button" aria-label="Προηγούμενος μήνας"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M15 6l-6 6 6 6"/></svg></button>
+    <div class="sheet-title" id="sheetTitle"></div>
+    <button class="icon-btn" id="nextMonth" type="button" aria-label="Επόμενος μήνας"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 6l6 6-6 6"/></svg></button>
+  </div>
+  <div class="wk" aria-hidden="true"><span>ΔΕ</span><span>ΤΡ</span><span>ΤΕ</span><span>ΠΕ</span><span>ΠΑ</span><span>ΣΑ</span><span>ΚΥ</span></div>
+  <div class="grid" id="grid"></div>
+  <div class="sheet-foot" id="backup">
+    <button class="link" id="exportBtn" type="button">Αντίγραφο ασφαλείας</button>
+    <button class="link" id="importBtn" type="button">Επαναφορά</button>
+    <input type="file" id="importFile" accept=".json,application/json" hidden>
+  </div>
+</section>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+<script>
+(() => {
+  document.documentElement.lang = 'el';
+
+  const DOW = ['ΔΕΥ', 'ΤΡΙ', 'ΤΕΤ', 'ΠΕΜ', 'ΠΑΡ', 'ΣΑΒ', 'ΚΥΡ'];
+  const DOW_FULL = ['Δευτέρα', 'Τρίτη', 'Τετάρτη', 'Πέμπτη', 'Παρασκευή', 'Σάββατο', 'Κυριακή'];
+  const DOW_CAPS = ['ΔΕΥΤΕΡΑ', 'ΤΡΙΤΗ', 'ΤΕΤΑΡΤΗ', 'ΠΕΜΠΤΗ', 'ΠΑΡΑΣΚΕΥΗ', 'ΣΑΒΒΑΤΟ', 'ΚΥΡΙΑΚΗ'];
+  const M_NOM = ['Ιανουάριος', 'Φεβρουάριος', 'Μάρτιος', 'Απρίλιος', 'Μάιος', 'Ιούνιος', 'Ιούλιος', 'Αύγουστος', 'Σεπτέμβριος', 'Οκτώβριος', 'Νοέμβριος', 'Δεκέμβριος'];
+  const M_GEN = ['Ιανουαρίου', 'Φεβρουαρίου', 'Μαρτίου', 'Απριλίου', 'Μαΐου', 'Ιουνίου', 'Ιουλίου', 'Αυγούστου', 'Σεπτεμβρίου', 'Οκτωβρίου', 'Νοεμβρίου', 'Δεκεμβρίου'];
+  const M_SHORT = ['ΙΑΝ', 'ΦΕΒ', 'ΜΑΡ', 'ΑΠΡ', 'ΜΑΪ', 'ΙΟΥΝ', 'ΙΟΥΛ', 'ΑΥΓ', 'ΣΕΠ', 'ΟΚΤ', 'ΝΟΕ', 'ΔΕΚ'];
+  const KEY = 'tetradio.notes.v1';
+  const CIRCLE = 'M47 6 C34 0 12 3 6 15 C1 27 13 37 30 37 C48 37 58 28 56 17 C54 8 41 3 25 5';
+
+  const $ = (id) => document.getElementById(id);
+  const pad = (n) => String(n).padStart(2, '0');
+  const keyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parseKey = (k) => { const [y, m, d] = k.split('-').map(Number); return new Date(y, m - 1, d); };
+  const addDays = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const mondayOf = (d) => addDays(d, -((d.getDay() + 6) % 7));
+  const dowIndex = (d) => (d.getDay() + 6) % 7;
+  function isoWeek(d) {
+    const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()));
+    t.setUTCDate(t.getUTCDate() + 4 - (t.getUTCDay() || 7));
+    return Math.ceil(((t - Date.UTC(t.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
+  }
+  function el(tag, cls, text) {
+    const e = document.createElement(tag);
+    if (cls) e.className = cls;
+    if (text != null) e.textContent = text;
+    return e;
+  }
+  function penCircle(draw) {
+    const ns = 'http://www.w3.org/2000/svg';
+    const s = document.createElementNS(ns, 'svg');
+    s.setAttribute('viewBox', '0 0 60 40');
+    s.setAttribute('preserveAspectRatio', 'none');
+    s.setAttribute('aria-hidden', 'true');
+    s.setAttribute('class', draw ? 'circle draw' : 'circle');
+    const p = document.createElementNS(ns, 'path');
+    p.setAttribute('d', CIRCLE);
+    p.setAttribute('pathLength', '100');
+    s.append(p);
+    return s;
+  }
+
+  /* ---------- Greek public holidays (fixed + Orthodox Easter) ---------- */
+  const FIXED = {
+    '1-1': ['Πρωτοχρονιά', 'Πρωτοχρονιά'],
+    '1-6': ['Θεοφάνεια', 'Θεοφάνεια'],
+    '3-25': ['25η Μαρτίου', 'Ευαγγελισμός · 25η Μαρτίου'],
+    '5-1': ['Πρωτομαγιά', 'Πρωτομαγιά'],
+    '8-15': ['Κοίμηση Θεοτόκου', 'Κοίμηση της Θεοτόκου'],
+    '10-28': ['28η Οκτωβρίου', 'Επέτειος του Όχι'],
+    '12-25': ['Χριστούγεννα', 'Χριστούγεννα'],
+    '12-26': ['Σύναξη Θεοτόκου', 'Σύναξη της Θεοτόκου'],
+  };
+  const MOVABLE = [
+    [-48, 'Καθαρά Δευτέρα', 'Καθαρά Δευτέρα'],
+    [-2, 'Μ. Παρασκευή', 'Μεγάλη Παρασκευή'],
+    [0, 'Πάσχα', 'Κυριακή του Πάσχα'],
+    [1, 'Δευτέρα Πάσχα', 'Δευτέρα του Πάσχα'],
+    [50, 'Αγίου Πνεύματος', 'Αγίου Πνεύματος'],
+  ];
+  function orthodoxEaster(y) {
+    const a = y % 4, b = y % 7, c = y % 19;
+    const d = (19 * c + 15) % 30, e = (2 * a + 4 * b - d + 34) % 7;
+    const month = Math.floor((d + e + 114) / 31), day = ((d + e + 114) % 31) + 1;
+    return new Date(y, month - 1, day + 13);
+  }
+  const feastCache = {};
+  function feastOn(d) {
+    const y = d.getFullYear();
+    if (!feastCache[y]) {
+      const m = {};
+      for (const [k, v] of Object.entries(FIXED)) { const [mo, da] = k.split('-').map(Number); m[keyOf(new Date(y, mo - 1, da))] = v; }
+      const easter = orthodoxEaster(y);
+      for (const [off, short, full] of MOVABLE) m[keyOf(addDays(easter, off))] = [short, full];
+      feastCache[y] = m;
+    }
+    return feastCache[y][keyOf(d)] || null;
+  }
+
+  /* ---------- storage ---------- */
+  function load() {
+    try { const v = JSON.parse(localStorage.getItem(KEY)); return v && typeof v === 'object' ? v : {}; }
+    catch { return {}; }
+  }
+  function persist() {
+    try { localStorage.setItem(KEY, JSON.stringify(notes)); } catch { /* storage unavailable */ }
+  }
+  try { navigator.storage && navigator.storage.persist && navigator.storage.persist().catch(() => {}); } catch { /* ignore */ }
+
+  let notes = load();
+  let monday = mondayOf(new Date());
+  let todayKey = keyOf(new Date());
+  let lastDrawn = null;
+
+  const app = $('app'), spread = $('spread'), pageL = $('pageL'), pageR = $('pageR');
+  const editor = $('editor'), note = $('note'), scrim = $('scrim'), sheet = $('sheet'), grid = $('grid');
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+
+  /* ---------- week ---------- */
+  function dayButton(d, drawCircle) {
+    const key = keyOf(d), i = dowIndex(d), feast = feastOn(d);
+    const b = el('button', 'day');
+    b.type = 'button';
+    b.dataset.key = key;
+    if (key === todayKey) b.classList.add('today');
+    if (i === 6 || feast) b.classList.add('red');
+    const head = el('span', 'head');
+    const numwrap = el('span', 'numwrap');
+    numwrap.append(el('span', 'num', String(d.getDate())));
+    if (key === todayKey) numwrap.append(penCircle(drawCircle));
+    head.append(numwrap, el('span', 'dow', d.getDate() === 1 ? `${DOW[i]} · ${M_SHORT[d.getMonth()]}` : DOW[i]));
+    b.append(head);
+    if (feast) b.append(el('span', 'feast', feast[0]));
+    b.append(el('span', 'text', notes[key] || ''));
+    return b;
+  }
+
+  function render() {
+    todayKey = keyOf(new Date());
+    const weekKey = keyOf(monday);
+    const draw = weekKey !== lastDrawn && !reduceMotion.matches;
+    lastDrawn = weekKey;
+    pageL.replaceChildren();
+    pageR.replaceChildren();
+    for (let i = 0; i < 7; i++) (i < 3 ? pageL : pageR).append(dayButton(addDays(monday, i), draw));
+    const thu = addDays(monday, 3);
+    $('monthName').textContent = M_NOM[thu.getMonth()];
+    $('weekLine').textContent = `${thu.getFullYear()} · ΕΒΔΟΜΑΔΑ ${isoWeek(thu)}`;
+    $('todayBtn').hidden = weekKey === keyOf(mondayOf(new Date()));
+    requestAnimationFrame(markOverflow);
+  }
+
+  function markOverflow() {
+    spread.querySelectorAll('.text').forEach((t) => t.classList.toggle('more', t.scrollHeight > t.clientHeight + 1));
+  }
+
+  /* the pages stay put; only what is written on them slides */
+  function slide(x, o, dur) {
+    spread.style.setProperty('--sx', x + 'px');
+    spread.style.setProperty('--so', String(o));
+    spread.style.setProperty('--sd', dur);
+  }
+  let animating = false;
+  function shift(target, dir) {
+    if (animating) return;
+    if (reduceMotion.matches || !dir) { monday = target; render(); slide(0, 1, '0s'); return; }
+    animating = true;
+    const w = spread.clientWidth * 0.18;
+    slide(-dir * w, 0, '.16s');
+    setTimeout(() => {
+      monday = target;
+      slide(dir * w, 0, '0s');
+      render();
+      void spread.offsetWidth;
+      slide(0, 1, '.34s');
+      setTimeout(() => { animating = false; }, 340);
+    }, 160);
+  }
+  const step = (dir) => shift(addDays(monday, 7 * dir), dir);
+  const jump = (target) => { const dir = Math.sign(target - monday); if (dir) shift(target, dir); };
+
+  /* swipe between weeks */
+  let tracking = false, dragging = false, suppressClick = false, sx = 0, sy = 0, dx = 0, pid = null;
+  spread.addEventListener('pointerdown', (e) => {
+    if (animating || (e.pointerType === 'mouse' && e.button !== 0)) return;
+    tracking = true; dragging = false; suppressClick = false;
+    sx = e.clientX; sy = e.clientY; dx = 0; pid = e.pointerId;
+  });
+  spread.addEventListener('pointermove', (e) => {
+    if (!tracking || e.pointerId !== pid) return;
+    const mx = e.clientX - sx, my = e.clientY - sy;
+    if (!dragging) {
+      if (Math.abs(mx) > 10 && Math.abs(mx) > Math.abs(my) * 1.2) {
+        dragging = true; suppressClick = true;
+        try { spread.setPointerCapture(pid); } catch { /* ignore */ }
+      } else {
+        if (Math.abs(my) > 14) tracking = false;
+        return;
+      }
+    }
+    dx = mx;
+    slide(dx * 0.5, 1 - Math.min(Math.abs(dx) / spread.clientWidth, 1) * 0.9, '0s');
+  });
+  function endDrag(e) {
+    if (!tracking || e.pointerId !== pid) return;
+    tracking = false;
+    if (!dragging) return;
+    dragging = false;
+    if (Math.abs(dx) > 55) step(dx < 0 ? 1 : -1);
+    else slide(0, 1, '.26s');
+  }
+  spread.addEventListener('pointerup', endDrag);
+  spread.addEventListener('pointercancel', endDrag);
+  spread.addEventListener('click', (e) => {
+    if (suppressClick) { suppressClick = false; return; }
+    const b = e.target.closest('.day');
+    if (b) openEditor(b.dataset.key, tapTarget(b, e.clientX, e.clientY));
+  });
+
+  /* where on the sheet was tapped: inside the written text, or on an empty line below it */
+  function caretAt(x, y) {
+    if (document.caretRangeFromPoint) {
+      const r = document.caretRangeFromPoint(x, y);
+      return r && { node: r.startContainer, offset: r.startOffset };
+    }
+    if (document.caretPositionFromPoint) {
+      const p = document.caretPositionFromPoint(x, y);
+      return p && { node: p.offsetNode, offset: p.offset };
+    }
+    return null;
+  }
+  function tapTarget(card, x, y) {
+    const t = card.querySelector('.text');
+    const box = t.getBoundingClientRect();
+    if (y < box.top) return null;
+    const lh = parseFloat(getComputedStyle(t).lineHeight) || 18;
+    const line = Math.floor((y - box.top) / lh);
+    const node = t.firstChild;
+    let used = 0;
+    if (node) {
+      const range = document.createRange();
+      range.selectNodeContents(t);
+      used = Math.max(1, Math.round((range.getBoundingClientRect().bottom - box.top) / lh));
+    }
+    if (line >= used) return { pad: line - used + (node ? 1 : 0) };
+    const pos = caretAt(x, y);
+    return pos && pos.node === node ? { offset: pos.offset } : null;
+  }
+
+  $('todayBtn').addEventListener('click', () => jump(mondayOf(new Date())));
+
+  /* ---------- overlays ---------- */
+  let overlay = null;
+  function showOverlay(o) {
+    overlay = o;
+    o.inert = false;
+    o.classList.add('open');
+    scrim.classList.add('on');
+    app.inert = true;
+  }
+  function closeOverlay() {
+    if (!overlay) return;
+    if (overlay === editor) { flushSave(); note.blur(); }
+    overlay.classList.remove('open');
+    overlay.inert = true;
+    scrim.classList.remove('on');
+    app.inert = false;
+    overlay = null;
+    render();
+    window.scrollTo(0, 0);
+  }
+  scrim.addEventListener('click', closeOverlay);
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeOverlay();
+    else if (!overlay && e.key === 'ArrowLeft') step(-1);
+    else if (!overlay && e.key === 'ArrowRight') step(1);
+  });
+
+  /* ---------- writing a day ---------- */
+  let editingKey = null, saveTimer = null;
+  function openEditor(key, at) {
+    editingKey = key;
+    const d = parseKey(key), i = dowIndex(d), feast = feastOn(d);
+    $('edNum').textContent = String(d.getDate());
+    $('edDay').textContent = DOW_CAPS[i];
+    $('edDate').textContent = `${M_GEN[d.getMonth()]} ${d.getFullYear()}`;
+    $('edFeast').hidden = !feast;
+    $('edFeast').textContent = feast ? feast[1] : '';
+    editor.classList.toggle('red', i === 6 || !!feast);
+    const wrap = $('edNumWrap');
+    wrap.querySelectorAll('.circle').forEach((c) => c.remove());
+    if (key === keyOf(new Date())) wrap.append(penCircle(false));
+    let value = notes[key] || '';
+    let caret = value.length;
+    if (at && at.pad > 0) { value += '\n'.repeat(at.pad); caret = value.length; }
+    else if (at && at.offset != null) caret = Math.min(at.offset, value.length);
+    note.value = value;
+    showOverlay(editor);
+    note.focus({ preventScroll: true });
+    try { note.setSelectionRange(caret, caret); } catch { /* ignore */ }
+    revealCaret(caret);
+  }
+
+  /* measure wrapped lines the way the textarea lays them out */
+  const mirror = document.createElement('div');
+  mirror.setAttribute('aria-hidden', 'true');
+  mirror.style.cssText = 'position:absolute;left:-9999px;top:0;visibility:hidden;white-space:pre-wrap;overflow-wrap:break-word;';
+  document.body.append(mirror);
+  function noteMetrics() {
+    const cs = getComputedStyle(note);
+    return { lh: parseFloat(cs.lineHeight) || 24, top: parseFloat(cs.paddingTop) || 0, cs };
+  }
+  function linesOf(text) {
+    const { lh, cs } = noteMetrics();
+    mirror.style.width = (note.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight)) + 'px';
+    mirror.style.fontFamily = cs.fontFamily;
+    mirror.style.fontSize = cs.fontSize;
+    mirror.style.lineHeight = cs.lineHeight;
+    mirror.textContent = text + '​';
+    return Math.max(1, Math.round(mirror.offsetHeight / lh));
+  }
+  function revealCaret(caret) {
+    const { lh, top } = noteMetrics();
+    const bottom = top + linesOf(note.value.slice(0, caret)) * lh;
+    note.scrollTop = bottom > note.clientHeight - lh ? bottom - note.clientHeight + lh * 2 : 0;
+  }
+
+  /* tapping an empty line below the text puts the cursor on that line */
+  note.addEventListener('click', (e) => {
+    if (note.selectionStart !== note.selectionEnd) return;
+    const { lh, top } = noteMetrics();
+    const line = Math.floor((e.clientY - note.getBoundingClientRect().top - top + note.scrollTop) / lh);
+    const used = linesOf(note.value);
+    if (line < used) return;
+    note.value += '\n'.repeat(line - used + 1);
+    const end = note.value.length;
+    note.setSelectionRange(end, end);
+    clearTimeout(saveTimer);
+    saveTimer = setTimeout(flushSave, 300);
+  });
+  function flushSave() {
+    clearTimeout(saveTimer);
+    if (!editingKey) return;
+    const v = note.value.replace(/\s+$/, '');
+    if (v.trim()) notes[editingKey] = v; else delete notes[editingKey];
+    persist();
+  }
+  note.addEventListener('input', () => { clearTimeout(saveTimer); saveTimer = setTimeout(flushSave, 300); });
+  $('doneBtn').addEventListener('click', closeOverlay);
+  document.addEventListener('visibilitychange', () => {
+    if (document.hidden) { if (overlay === editor) flushSave(); return; }
+    const wasCurrent = keyOf(monday) === keyOf(mondayOf(parseKey(todayKey)));
+    if (keyOf(new Date()) !== todayKey) {
+      if (wasCurrent) monday = mondayOf(new Date());
+      lastDrawn = null;
+      if (overlay !== editor) render();
+    }
+  });
+  window.addEventListener('pagehide', () => { if (overlay === editor) flushSave(); });
+
+  /* keep the page above the keyboard */
+  const vv = window.visualViewport;
+  function fit() {
+    const root = document.documentElement.style;
+    root.setProperty('--vv-h', (vv ? vv.height : window.innerHeight) + 'px');
+    root.setProperty('--vv-top', (vv ? vv.offsetTop : 0) + 'px');
+    editor.classList.toggle('kb', !!vv && window.innerHeight - vv.height > 120);
+  }
+  if (vv) { vv.addEventListener('resize', fit); vv.addEventListener('scroll', fit); }
+  window.addEventListener('resize', () => { fit(); markOverflow(); });
+
+  /* ---------- month ---------- */
+  let cursor = null;
+  function renderMonth() {
+    $('sheetTitle').textContent = `${M_NOM[cursor.getMonth()]} ${cursor.getFullYear()}`;
+    grid.replaceChildren();
+    const start = mondayOf(cursor), now = keyOf(new Date());
+    const from = keyOf(monday), to = keyOf(addDays(monday, 6));
+    for (let i = 0; i < 42; i++) {
+      const d = addDays(start, i), k = keyOf(d), feast = feastOn(d);
+      const c = el('button', 'cell');
+      c.type = 'button';
+      c.dataset.key = k;
+      c.setAttribute('aria-label', `${DOW_FULL[dowIndex(d)]} ${d.getDate()} ${M_GEN[d.getMonth()]} ${d.getFullYear()}${feast ? ', ' + feast[1] : ''}`);
+      if (d.getMonth() !== cursor.getMonth()) c.classList.add('out');
+      if (i % 7 === 6 || feast) c.classList.add('red');
+      if (notes[k]) c.classList.add('has');
+      if (k >= from && k <= to) {
+        c.classList.add('inweek');
+        if (i % 7 === 0) c.classList.add('wk-first');
+        if (i % 7 === 6) c.classList.add('wk-last');
+      }
+      const n = el('span', 'n', String(d.getDate()));
+      if (k === now) n.append(penCircle(false));
+      c.append(n);
+      grid.append(c);
+    }
+  }
+  $('titleBtn').addEventListener('click', () => {
+    const thu = addDays(monday, 3);
+    cursor = new Date(thu.getFullYear(), thu.getMonth(), 1);
+    renderMonth();
+    showOverlay(sheet);
+  });
+  $('prevMonth').addEventListener('click', () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1); renderMonth(); });
+  $('nextMonth').addEventListener('click', () => { cursor = new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1); renderMonth(); });
+  grid.addEventListener('click', (e) => {
+    const c = e.target.closest('.cell');
+    if (!c) return;
+    const target = mondayOf(parseKey(c.dataset.key));
+    closeOverlay();
+    jump(target);
+  });
+
+  /* ---------- backup ---------- */
+  const embedded = (() => { try { return window.self !== window.top; } catch { return true; } })();
+  $('backup').hidden = embedded;
+
+  let toastTimer = null;
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('on');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove('on'), 2200);
+  }
+
+  $('exportBtn').addEventListener('click', async () => {
+    const name = `calendar-${keyOf(new Date())}.json`;
+    const body = JSON.stringify({ app: 'calendar', version: 1, savedAt: new Date().toISOString(), notes }, null, 2);
+    const file = new File([body], name, { type: 'application/json' });
+    try {
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file] }); return; }
+    } catch (err) {
+      if (err && err.name === 'AbortError') return;
+    }
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(file);
+    a.download = name;
+    document.body.append(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  });
+  $('importBtn').addEventListener('click', () => $('importFile').click());
+  $('importFile').addEventListener('change', async (e) => {
+    const f = e.target.files && e.target.files[0];
+    e.target.value = '';
+    if (!f) return;
+    let data;
+    try { data = JSON.parse(await f.text()); } catch { data = null; }
+    const src = data && typeof data === 'object' ? (data.notes && typeof data.notes === 'object' ? data.notes : data) : null;
+    if (!src) { toast('Αυτό το αρχείο δεν είναι αντίγραφο του Calendar'); return; }
+    let n = 0;
+    for (const [k, v] of Object.entries(src)) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(k) || typeof v !== 'string' || !v.trim()) continue;
+      const cur = notes[k];
+      if (!cur || !cur.trim()) notes[k] = v;
+      else if (!cur.includes(v)) notes[k] = cur + '\n' + v;
+      else continue;
+      n++;
+    }
+    persist();
+    render();
+    if (cursor) renderMonth();
+    toast(n ? `Επανήλθαν ${n} ${n === 1 ? 'μέρα' : 'μέρες'}` : 'Δεν βρέθηκε κάτι καινούργιο');
+  });
+
+  fit();
+  render();
+})();
+</script>
+<script>
+if ('serviceWorker' in navigator) {
+  addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
+}
+</script>
+</body>
+</html>
